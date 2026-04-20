@@ -5,13 +5,32 @@ from flask import Flask
 from flask_pymongo import PyMongo
 from flask_login import LoginManager
 from dotenv import load_dotenv
+from pymongo.errors import PyMongoError, ServerSelectionTimeoutError
 import os
+import threading
 
 # Load env vars
 load_dotenv()
 
 mongo = PyMongo()
 login_manager = LoginManager()
+
+
+def _seed_in_background(app: Flask) -> None:
+    """Run first-time seeding without blocking app startup."""
+    with app.app_context():
+        try:
+            mongo.cx.admin.command('ping')
+            from app.utils.seeder import seed_if_empty
+            seed_if_empty()
+        except ServerSelectionTimeoutError:
+            print(
+                "[Startup] MongoDB is not reachable. "
+                "Skipping data seeding for now. "
+                "Please start MongoDB and restart the app."
+            )
+        except PyMongoError as exc:
+            print(f"[Startup] Skipping seed due to database error: {exc}")
 
 
 def create_app():
@@ -24,6 +43,11 @@ def create_app():
     # ── Config ─────────────────────────────────────────────────────────────
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-fallback-key')
     app.config['MONGO_URI'] = os.getenv('MONGO_URI', 'mongodb://localhost:27017/school_management')
+    app.config['MONGO_CONNECT'] = False
+    app.config['MONGO_OPTIONS'] = {
+        'serverSelectionTimeoutMS': int(os.getenv('MONGO_SERVER_SELECTION_TIMEOUT_MS', '3000')),
+        'connectTimeoutMS': int(os.getenv('MONGO_CONNECT_TIMEOUT_MS', '3000')),
+    }
     app.config['WTF_CSRF_ENABLED'] = False  # Disable for API routes; enable per-form if needed
 
     # ── Extensions ─────────────────────────────────────────────────────────
@@ -58,9 +82,9 @@ def create_app():
     from app.models.user import load_user_by_id
     login_manager.user_loader(load_user_by_id)
 
-    # ── Seed initial data ──────────────────────────────────────────────────
-    with app.app_context():
-        from app.utils.seeder import seed_if_empty
-        seed_if_empty()
+    # ── Seed initial data (non-blocking) ───────────────────────────────────
+    should_seed = os.getenv('SEED_ON_STARTUP', 'true').lower() == 'true'
+    if should_seed:
+        threading.Thread(target=_seed_in_background, args=(app,), daemon=True).start()
 
     return app
