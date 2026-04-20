@@ -25,9 +25,9 @@ def teacher_register():
     name     = data.get('name', '').strip()
     email    = data.get('email', '').strip()
     password = data.get('password', '')
-    subject  = data.get('subject', 'Mathematics')
+    subject  = data.get('subject', '').strip()
 
-    if not all([name, email, password]):
+    if not all([name, email, password, subject]):
         return {'success': False, 'message': 'All fields are required'}, 400
 
     if TeacherModel.find_by_email(email):
@@ -68,9 +68,9 @@ def student_register():
     name          = data.get('name', '').strip()
     email         = data.get('email', '').strip()
     password      = data.get('password', '')
-    student_class = data.get('class', 'Grade 10A')
+    student_class = data.get('class', '').strip()
 
-    if not all([name, email, password]):
+    if not all([name, email, password, student_class]):
         return {'success': False, 'message': 'All fields are required'}, 400
 
     if StudentModel.find_by_email(email):

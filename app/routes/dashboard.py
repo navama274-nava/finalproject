@@ -58,10 +58,6 @@ def attendance_analytics():
         if 0 <= month_idx < 12 and row['total'] > 0:
             rates[month_idx] = round((row['present'] / row['total']) * 100, 1)
 
-    # Fallback to realistic static data if no attendance records yet
-    if all(r == 0 for r in rates):
-        rates = [92, 88, 95, 91, 93, 89, 94, 96, 92, 90, 93, 95]
-
     return jsonify({'labels': months, 'rates': rates})
 
 
