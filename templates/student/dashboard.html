@@ -1,0 +1,169 @@
+{% extends "shared/base.html" %}
+{% block title %}Student Dashboard — EduManage{% endblock %}
+
+{% block content %}
+<div class="page-container">
+
+    <!-- Welcome header -->
+    <div class="dash-header anim-up">
+        <div class="dash-avatar teal"><i class="fas fa-user-graduate"></i></div>
+        <div class="dash-info">
+            <h2>{{ student.name }}</h2>
+            <p><i class="fas fa-id-card" style="margin-right:6px;color:var(--text-3);"></i>{{ student.roll }} · {{ student.class }}</p>
+        </div>
+        <div class="dash-meta">
+            <span>Overall Grade</span>
+            <strong>{{ student.overall_grade }}</strong>
+        </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="stat-grid" id="studentStats">
+        <div class="stat-card teal anim-up">
+            <div class="icon"><i class="fas fa-star"></i></div>
+            <div class="stat-value">{{ student.overall_grade }}</div>
+            <div class="stat-label">Overall Grade</div>
+        </div>
+        <div class="stat-card green anim-up">
+            <div class="icon"><i class="fas fa-percent"></i></div>
+            <div class="stat-value">{{ student.overall_marks }}%</div>
+            <div class="stat-label">Overall Marks</div>
+        </div>
+        <div class="stat-card indigo anim-up">
+            <div class="icon"><i class="fas fa-calendar-check"></i></div>
+            <div class="stat-value">{{ student.attendance_pct }}%</div>
+            <div class="stat-label">Attendance</div>
+        </div>
+        <div class="stat-card amber anim-up">
+            <div class="icon"><i class="fas fa-door-open"></i></div>
+            <div class="stat-value">{{ student.class[-2:] }}</div>
+            <div class="stat-label">Section</div>
+        </div>
+    </div>
+
+    <!-- Subject-wise grades -->
+    <div class="chart-card anim-up">
+        <h3><i class="fas fa-book-open" style="color:var(--indigo-2);margin-right:8px;"></i>Subject-wise Performance</h3>
+        <div id="subjectGrades"><div class="loader"><div class="spinner"></div><span>Loading grades…</span></div></div>
+    </div>
+
+    <!-- Performance Chart -->
+    <div class="chart-card anim-up">
+        <h3><i class="fas fa-chart-radar" style="color:var(--teal);margin-right:8px;"></i>Performance Chart</h3>
+        <canvas id="perfChart" height="90"></canvas>
+    </div>
+
+    <!-- Attendance records -->
+    <div class="chart-card anim-up">
+        <h3><i class="fas fa-calendar-alt" style="color:var(--green);margin-right:8px;"></i>Attendance History (Last 30 Days)</h3>
+        <div id="attendanceRecords"><div class="loader"><div class="spinner"></div><span>Loading…</span></div></div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let perfChart = null;
+
+async function loadGrades() {
+    const container = document.getElementById('subjectGrades');
+    try {
+        const d = await API.get('/student/grades');
+        const marks = d.marks;
+        const subjects = Object.keys(marks);
+
+        if (!subjects.length) {
+            container.innerHTML = `<div class="alert alert-info"><i class="fas fa-info-circle"></i>No grade records yet.</div>`;
+            return;
+        }
+
+        let html = `<div class="table-wrap"><table class="data-table">
+            <thead><tr><th>Subject</th><th>Score</th><th>Grade</th><th>Progress</th></tr></thead><tbody>`;
+
+        const subjectData = [];
+        subjects.forEach(sub => {
+            const m = marks[sub];
+            const score = m.score || 0;
+            const grade = m.grade || 'N/A';
+            subjectData.push({ subject: sub, score });
+            const pct   = score;
+            const color = score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--indigo)' : score >= 40 ? 'var(--amber)' : 'var(--rose)';
+            html += `<tr>
+                <td><strong>${sub}</strong></td>
+                <td style="font-family:'Space Grotesk',sans-serif;">${score}%</td>
+                <td>${gradeBadge(grade)}</td>
+                <td style="min-width:120px;">
+                    <div style="background:var(--border);border-radius:4px;height:6px;overflow:hidden;">
+                        <div style="width:${pct}%;background:${color};height:100%;border-radius:4px;transition:width 0.8s ease;"></div>
+                    </div>
+                </td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+
+        // Build radar / bar chart
+        if (perfChart) perfChart.destroy();
+        perfChart = new Chart(document.getElementById('perfChart'), {
+            type: 'bar',
+            data: {
+                labels: subjectData.map(s => s.subject),
+                datasets: [{
+                    label: 'Score (%)',
+                    data: subjectData.map(s => s.score),
+                    backgroundColor: subjectData.map(s =>
+                        s.score >= 80 ? 'rgba(34,197,94,0.3)' :
+                        s.score >= 60 ? 'rgba(79,110,247,0.3)' :
+                        s.score >= 40 ? 'rgba(245,158,11,0.3)' : 'rgba(244,63,94,0.3)'
+                    ),
+                    borderColor: subjectData.map(s =>
+                        s.score >= 80 ? '#22c55e' :
+                        s.score >= 60 ? '#4f6ef7' :
+                        s.score >= 40 ? '#f59e0b' : '#f43f5e'
+                    ),
+                    borderWidth: 2, borderRadius: 6,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b', callback: v => v + '%' } },
+                    x: { grid: { display: false }, ticks: { color: '#64748b' } }
+                }
+            }
+        });
+
+    } catch (e) {
+        container.innerHTML = `<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i>Failed to load grades.</div>`;
+    }
+}
+
+async function loadAttendance() {
+    const container = document.getElementById('attendanceRecords');
+    try {
+        const d = await API.get('/student/attendance');
+        const records = d.records;
+
+        if (!records.length) {
+            container.innerHTML = `<div class="alert alert-info"><i class="fas fa-info-circle"></i>No attendance records found.</div>`;
+            return;
+        }
+
+        let html = `<div class="table-wrap"><table class="data-table">
+            <thead><tr><th>Date</th><th>Status</th></tr></thead><tbody>`;
+        records.forEach(r => {
+            html += `<tr><td>${r.date}</td><td>${statusBadge(r.status)}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    } catch (e) {
+        container.innerHTML = `<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i>Failed to load attendance.</div>`;
+    }
+}
+
+loadGrades();
+loadAttendance();
+</script>
+{% endblock %}

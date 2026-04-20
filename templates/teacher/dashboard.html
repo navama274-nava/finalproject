@@ -1,0 +1,196 @@
+{% extends "shared/base.html" %}
+{% block title %}Teacher Dashboard — EduManage{% endblock %}
+
+{% block content %}
+<div class="page-container">
+
+    <!-- Welcome header -->
+    <div class="dash-header anim-up">
+        <div class="dash-avatar"><i class="fas fa-chalkboard-user"></i></div>
+        <div class="dash-info">
+            <h2>{{ teacher.name }}</h2>
+            <p><i class="fas fa-book" style="margin-right:6px;color:var(--text-3);"></i>{{ teacher.subject }} · ID: {{ teacher.teacher_id }}</p>
+        </div>
+        <div class="dash-meta">
+            <span>Academic Year</span>
+            <strong>2024 – 25</strong>
+        </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="stat-grid" id="teacherStats">
+        <div class="stat-card green anim-up" onclick="openMyStudents()">
+            <div class="icon"><i class="fas fa-users"></i></div>
+            <div class="stat-value" id="myStudentCount">—</div>
+            <div class="stat-label">My Students</div>
+        </div>
+        <div class="stat-card indigo anim-up">
+            <div class="icon"><i class="fas fa-book-open"></i></div>
+            <div class="stat-value">{{ teacher.subject[:4] }}</div>
+            <div class="stat-label">Specialisation</div>
+        </div>
+        <div class="stat-card amber anim-up">
+            <div class="icon"><i class="fas fa-calendar-day"></i></div>
+            <div class="stat-value" id="classesToday">3</div>
+            <div class="stat-label">Classes Today</div>
+        </div>
+        <div class="stat-card teal anim-up" onclick="openGradeEntry()">
+            <div class="icon"><i class="fas fa-pen-to-square"></i></div>
+            <div class="stat-value">Update</div>
+            <div class="stat-label">Enter Grades</div>
+        </div>
+    </div>
+
+    <!-- Today's Schedule -->
+    <div class="chart-card anim-up">
+        <h3><i class="fas fa-calendar-day" style="color:var(--indigo-2);margin-right:8px;"></i>Today's Schedule</h3>
+        <div id="todaySchedule"><div class="loader"><div class="spinner"></div><span>Loading schedule…</span></div></div>
+    </div>
+
+    <!-- My Students Table -->
+    <div class="chart-card anim-up" id="myStudentsSection" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h3><i class="fas fa-users" style="color:var(--green);margin-right:8px;"></i>My Students</h3>
+            <button class="btn btn-ghost" onclick="document.getElementById('myStudentsSection').style.display='none'">
+                <i class="fas fa-times"></i> Hide
+            </button>
+        </div>
+        <div class="search-wrap" style="margin-bottom:14px;">
+            <i class="fas fa-search"></i>
+            <input class="search-box" id="teacherStudentSearch" placeholder="Search students…" oninput="loadMyStudents(1, this.value)">
+        </div>
+        <div id="myStudentsTable"></div>
+        <div class="pagination" id="myStudentsPagination"></div>
+    </div>
+
+    <!-- Grade Entry Modal trigger section -->
+    <div class="chart-card anim-up" id="gradeSection" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h3><i class="fas fa-pen-to-square" style="color:var(--teal);margin-right:8px;"></i>Update Student Grade</h3>
+            <button class="btn btn-ghost" onclick="document.getElementById('gradeSection').style.display='none'">
+                <i class="fas fa-times"></i> Hide
+            </button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:14px;align-items:flex-end;">
+            <div class="form-group" style="margin-bottom:0;">
+                <label>Student Roll No.</label>
+                <input class="form-control" id="gradeStudentId" placeholder="e.g. S1001">
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+                <label>Subject</label>
+                <select class="form-control" id="gradeSubject">
+                    <option>Mathematics</option><option>Physics</option><option>Chemistry</option>
+                    <option>Biology</option><option>English</option><option>Computer Science</option>
+                    <option>History</option><option>Geography</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+                <label>Marks (0–100)</label>
+                <input class="form-control" id="gradeMarks" type="number" min="0" max="100" placeholder="85">
+            </div>
+            <button class="btn btn-primary" onclick="submitGrade()"><i class="fas fa-save"></i> Save</button>
+        </div>
+        <div id="gradeMsg" style="margin-top:14px;"></div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const TEACHER_SUBJECT = "{{ teacher.subject }}";
+
+async function initDashboard() {
+    // Load today's schedule
+    try {
+        const d = await API.get('/teacher/today-classes');
+        let html = `<div class="table-wrap"><table class="data-table">
+            <thead><tr><th>Subject</th><th>Time</th><th>Class</th><th>Room</th></tr></thead><tbody>`;
+        d.schedule.forEach(s => {
+            html += `<tr>
+                <td><strong>${s.subject}</strong></td>
+                <td><span class="badge badge-good">${s.time}</span></td>
+                <td>${s.class}</td>
+                <td style="color:var(--teal);">${s.room}</td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+        document.getElementById('todaySchedule').innerHTML = html;
+        document.getElementById('classesToday').textContent = d.schedule.length;
+    } catch (e) {
+        document.getElementById('todaySchedule').innerHTML = `<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i>Could not load schedule.</div>`;
+    }
+
+    // Load student count
+    try {
+        const d = await API.get('/api/students?per_page=1');
+        document.getElementById('myStudentCount').textContent = d.total.toLocaleString();
+    } catch(e) {}
+}
+
+async function openMyStudents() {
+    document.getElementById('myStudentsSection').style.display = 'block';
+    document.getElementById('myStudentsSection').scrollIntoView({ behavior: 'smooth' });
+    await loadMyStudents(1, '');
+}
+
+let msPage = 1;
+async function loadMyStudents(page, search) {
+    msPage = page;
+    const container = document.getElementById('myStudentsTable');
+    const pagEl     = document.getElementById('myStudentsPagination');
+    showLoader(container);
+
+    try {
+        const d = await API.get(`/teacher/my-students?page=${page}&per_page=15&search=${encodeURIComponent(search || '')}`);
+        let html = `<div class="table-wrap"><table class="data-table">
+            <thead><tr><th>Roll</th><th>Name</th><th>Class</th><th>Marks</th><th>Grade</th><th>Attendance</th></tr></thead><tbody>`;
+        d.students.forEach(s => {
+            html += `<tr>
+                <td style="color:var(--text-3);font-family:'Space Grotesk',sans-serif;">${s.roll}</td>
+                <td><strong>${s.name}</strong></td>
+                <td>${s.class}</td>
+                <td>${s.overall_marks}%</td>
+                <td>${gradeBadge(s.overall_grade)}</td>
+                <td>${statusBadge(s.attendance_pct >= 75 ? 'present' : s.attendance_pct < 60 ? 'absent' : 'late')} ${s.attendance_pct}%</td>
+            </tr>`;
+        });
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+        buildPagination(pagEl, page, d.total_pages, 'loadMyStudents');
+    } catch (e) {
+        container.innerHTML = `<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i>Failed to load students.</div>`;
+    }
+}
+
+function openGradeEntry() {
+    document.getElementById('gradeSection').style.display = 'block';
+    document.getElementById('gradeSection').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function submitGrade() {
+    const rollInput = document.getElementById('gradeStudentId').value.trim();
+    const subject   = document.getElementById('gradeSubject').value;
+    const marks     = parseInt(document.getElementById('gradeMarks').value);
+    const msgEl     = document.getElementById('gradeMsg');
+
+    if (!rollInput || isNaN(marks)) {
+        msgEl.innerHTML = `<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i>Please enter Roll No. and valid marks.</div>`;
+        return;
+    }
+
+    // Note: grade update by roll requires looking up student ID — for now use roll as identifier
+    const { ok, data } = await API.post('/teacher/update-grade', {
+        student_id: rollInput,
+        subject,
+        marks
+    });
+    msgEl.innerHTML = ok
+        ? `<div class="alert alert-success"><i class="fas fa-check-circle"></i>Grade updated successfully.</div>`
+        : `<div class="alert alert-error"><i class="fas fa-exclamation-circle"></i>${data?.message || 'Update failed.'}</div>`;
+}
+
+window.loadMyStudents = loadMyStudents;
+initDashboard();
+</script>
+{% endblock %}
