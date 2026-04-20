@@ -1,19 +1,55 @@
 """
 Application Factory - Initializes Flask app with all extensions and blueprints.
 """
-from flask import Flask
+from flask import Flask, jsonify, render_template, request
 from flask_pymongo import PyMongo
 from flask_login import LoginManager
 from dotenv import load_dotenv
 from pymongo.errors import PyMongoError, ServerSelectionTimeoutError
 import os
 import threading
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 # Load env vars
 load_dotenv()
 
 mongo = PyMongo()
 login_manager = LoginManager()
+
+
+def _mongo_timeout_ms(env_key: str, default: int = 3000) -> int:
+    """Read timeout env vars safely and fallback to sane defaults."""
+    try:
+        value = int(os.getenv(env_key, str(default)))
+        return value if value > 0 else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _build_mongo_uri(base_uri: str) -> str:
+    """Ensure Mongo URI includes short timeouts for faster failure when DB is down."""
+    parsed = urlparse(base_uri)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+
+    query.setdefault('serverSelectionTimeoutMS', str(_mongo_timeout_ms('MONGO_SERVER_SELECTION_TIMEOUT_MS', 3000)))
+    query.setdefault('connectTimeoutMS', str(_mongo_timeout_ms('MONGO_CONNECT_TIMEOUT_MS', 3000)))
+    query.setdefault('socketTimeoutMS', str(_mongo_timeout_ms('MONGO_SOCKET_TIMEOUT_MS', 3000)))
+
+    return urlunparse(parsed._replace(query=urlencode(query)))
+
+
+def _db_unavailable_response():
+    """Consistent fallback response when MongoDB is unreachable."""
+    message = (
+        'Database is unavailable. Start MongoDB and try again. '
+        'Expected default URI: mongodb://localhost:27017/school_management'
+    )
+
+    wants_json = request.path != '/' and not request.path.startswith('/static/')
+    if wants_json:
+        return jsonify({'success': False, 'error': message}), 503
+
+    return render_template('index.html', db_error=message), 503
 
 
 def _seed_in_background(app: Flask) -> None:
@@ -42,12 +78,10 @@ def create_app():
 
     # ── Config ─────────────────────────────────────────────────────────────
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-fallback-key')
-    app.config['MONGO_URI'] = os.getenv('MONGO_URI', 'mongodb://localhost:27017/school_management')
+    app.config['MONGO_URI'] = _build_mongo_uri(
+        os.getenv('MONGO_URI', 'mongodb://localhost:27017/school_management')
+    )
     app.config['MONGO_CONNECT'] = False
-    app.config['MONGO_OPTIONS'] = {
-        'serverSelectionTimeoutMS': int(os.getenv('MONGO_SERVER_SELECTION_TIMEOUT_MS', '3000')),
-        'connectTimeoutMS': int(os.getenv('MONGO_CONNECT_TIMEOUT_MS', '3000')),
-    }
     app.config['WTF_CSRF_ENABLED'] = False  # Disable for API routes; enable per-form if needed
 
     # ── Extensions ─────────────────────────────────────────────────────────
@@ -72,11 +106,16 @@ def create_app():
     app.register_blueprint(api_bp,        url_prefix='/api')
 
     # ── Index route ────────────────────────────────────────────────────────
-    from flask import render_template
 
     @app.route('/')
     def index():
         return render_template('index.html')
+
+    # ── Global DB error handling ─────────────────────────────────────────────
+    @app.errorhandler(ServerSelectionTimeoutError)
+    @app.errorhandler(PyMongoError)
+    def handle_mongo_errors(_error):
+        return _db_unavailable_response()
 
     # ── User loader for Flask-Login ────────────────────────────────────────
     from app.models.user import load_user_by_id
