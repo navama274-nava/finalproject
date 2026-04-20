@@ -1,6 +1,6 @@
 # 🎓 School Management System
 
-A production-ready **Flask + MongoDB** school management platform with modular architecture, session-based auth, live data seeding and Chart.js analytics.
+A production-ready **Flask + MongoDB** school management platform with modular architecture, session-based auth, and Chart.js analytics.
 
 ---
 
@@ -30,7 +30,6 @@ school_management/
 │   │   └── api.py                # /api/* — public JSON endpoints
 │   │
 │   └── utils/
-│       ├── seeder.py             # One-time database seed (1050 students, 100 teachers…)
 │       └── helpers.py            # serialize_doc, paginate, marks_to_grade, api_success/error
 │
 ├── static/
@@ -74,22 +73,9 @@ SECRET_KEY=change-this-in-production
 python run.py
 ```
 
-The app auto-seeds **1,050 students, 100 teachers, 24 classes, 15 subjects, 25 awards and full timetables** on first startup.
-
 Open: **http://localhost:5000**
 
 ---
-
-## 🔑 Default Test Credentials
-
-After seeding, you can register new accounts or use the seeded accounts:
-
-| Role    | Email Pattern                              | Password    |
-|---------|---------------------------------------------|-------------|
-| Teacher | james.smith1@teacher.school.com             | teacher123  |
-| Student | mary.johnson1@student.school.com            | student123  |
-
-Or register a new account directly through the login modal.
 
 ---
 
@@ -157,8 +143,6 @@ Or register a new account directly through the login modal.
 - **Blueprint-per-module** — auth, dashboard, teacher, student, timetable, api all isolated
 - **Flask-Login** — session-based auth with unified `User` wrapper for both roles
 - **Flask-Bcrypt** — all passwords hashed (never stored in plain text)
-- **Seeder guard** — `seed_if_empty()` runs only when `students` collection is empty
-- **Batch inserts** — seeder inserts students in batches of 200 for memory efficiency
 - **MongoDB Indexes** — unique index on emails, compound index on (student_id, date) for attendance
 - **CSS Variables** — full theming via `:root` vars, easy to retheme in one place
 - **Chart.js** — attendance line chart, grade bar chart rendered client-side

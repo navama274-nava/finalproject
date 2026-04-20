@@ -308,7 +308,7 @@ async function openAttendanceAnalytics() {
                 responsive: true,
                 plugins: {
                     legend: { position: 'top', labels: { color: '#94a3b8' } },
-                    title: { display: true, text: 'Monthly Attendance Overview 2024', color: '#f1f5f9', font: { size: 14, weight: '700' } }
+                    title: { display: true, text: 'Monthly Attendance Overview', color: '#f1f5f9', font: { size: 14, weight: '700' } }
                 },
                 scales: {
                     y: { min: 70, max: 100, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b', callback: v => v + '%' } },
@@ -318,7 +318,6 @@ async function openAttendanceAnalytics() {
         });
 
         const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-        const statuses = [92,88,95,91,93,89,94,96,92,90,93,95];
         let html = `<p class="section-title" style="margin-top:24px;">Monthly Summary</p>
         <div class="table-wrap"><table class="data-table">
             <thead><tr><th>Month</th><th>Rate</th><th>Status</th><th>Trend</th></tr></thead><tbody>`;
@@ -346,7 +345,7 @@ async function openTimetable() {
             btnsEl.innerHTML = d.classes.map(c =>
                 `<button class="class-btn" onclick="loadTimetable('${c}')">${c}</button>`
             ).join('');
-            if (d.classes.length) loadTimetable(d.classes.indexOf('Grade 10A') >= 0 ? 'Grade 10A' : d.classes[0]);
+            if (d.classes.length) loadTimetable(d.classes[0]);
         } catch (e) {
             toast('Failed to load class list', 'error');
         }

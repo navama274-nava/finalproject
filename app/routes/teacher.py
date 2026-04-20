@@ -82,12 +82,5 @@ def update_grade():
 @teacher_bp.route('/today-classes')
 @login_required
 def today_classes():
-    """Static sample today's schedule for the logged-in teacher."""
-    subject = current_user._doc.get('subject', 'Mathematics')
-    alt_sub = 'Physics' if subject != 'Physics' else 'Mathematics'
-    schedule = [
-        {'subject': subject, 'time': '09:00 - 10:00', 'class': 'Grade 10A', 'room': 'Room 101'},
-        {'subject': alt_sub, 'time': '10:15 - 11:15', 'class': 'Grade 10B', 'room': 'Lab 2'},
-        {'subject': 'English','time': '11:30 - 12:30', 'class': 'Grade 9A',  'room': 'Room 103'},
-    ]
-    return jsonify({'schedule': schedule})
+    """Returns today's schedule for the logged-in teacher."""
+    return jsonify({'schedule': []})

@@ -7,7 +7,6 @@ from flask_login import LoginManager
 from dotenv import load_dotenv
 from pymongo.errors import PyMongoError, ServerSelectionTimeoutError
 import os
-import threading
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 # Load env vars
@@ -50,23 +49,6 @@ def _db_unavailable_response():
         return jsonify({'success': False, 'error': message}), 503
 
     return render_template('index.html', db_error=message), 503
-
-
-def _seed_in_background(app: Flask) -> None:
-    """Run first-time seeding without blocking app startup."""
-    with app.app_context():
-        try:
-            mongo.cx.admin.command('ping')
-            from app.utils.seeder import seed_if_empty
-            seed_if_empty()
-        except ServerSelectionTimeoutError:
-            print(
-                "[Startup] MongoDB is not reachable. "
-                "Skipping data seeding for now. "
-                "Please start MongoDB and restart the app."
-            )
-        except PyMongoError as exc:
-            print(f"[Startup] Skipping seed due to database error: {exc}")
 
 
 def create_app():
@@ -120,10 +102,5 @@ def create_app():
     # ── User loader for Flask-Login ────────────────────────────────────────
     from app.models.user import load_user_by_id
     login_manager.user_loader(load_user_by_id)
-
-    # ── Seed initial data (non-blocking) ───────────────────────────────────
-    should_seed = os.getenv('SEED_ON_STARTUP', 'true').lower() == 'true'
-    if should_seed:
-        threading.Thread(target=_seed_in_background, args=(app,), daemon=True).start()
 
     return app
